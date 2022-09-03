@@ -1,0 +1,120 @@
+These are the commands I used:
+#+begin_src bash
+bundle install
+
+bundle exec rake db:migrate
+#+end_src
+
+Results of 'bundle exec rake db:migrate':
+#+begin_src bash
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-3/phase-3-active-record-seeding-from-apis $ bundle exec rake db:migrate
+== 20210718144445 CreateSpells: migrating =====================================
+-- create_table(:spells)
+   -> 0.0010s
+== 20210718144445 CreateSpells: migrated (0.0010s) ============================
+#+end_src
+
+The goal in this lesson is to utilize the D&D API, which will be done using the following steps:
+- Make a request to the spells endpoint for the API
+- Parse the JSON response into a Ruby hash
+- Find the data in that hash that we want to save to our database
+- Use Active Record to save the data to the database
+
+In this lesson, we are using the 'Rest Client' gem to make this API request.
+
+These are the 'Rest Client' commands I used after using 'rake console':
+#+begin_src bash
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-3/phase-3-active-record-seeding-from-apis $ rake console
+
+[1] pry(main)> response = RestClient.get "https://www.dnd5eapi.co/api/spells/acid-arrow"
+
+=> <RestClient::Response 200 "{\"_id\":\"631...">
+
+[2] pry(main)> spell_hash = JSON.parse(response)
+
+=> {"_id"=>"63114cff82d23abb2a7461d7",
+ "index"=>"acid-arrow",
+ "name"=>"Acid Arrow",
+ "desc"=>
+  ["A shimmering green arrow streaks toward a target within range and bursts in a spray of acid. Make a ranged spell attack against the target. On a hit, the target takes 4d4 acid damage immediately and 2d4 acid damage at the end of its next turn. On a miss, the arrow splashes the target with acid for half as much of the initial damage and no damage at the end of its next turn."],
+ "higher_level"=>
+  ["When you cast this spell using a spell slot of 3rd level or higher, the damage (both initial and later) increases by 1d4 for each slot level above 2nd."],
+ "range"=>"90 feet",
+ "components"=>["V", "S", "M"],
+ "material"=>"Powdered rhubarb leaf and an adder's stomach.",
+ "ritual"=>false,
+ "duration"=>"Instantaneous",
+ "concentration"=>false,
+
+[3] pry(main)> spell_hash["name"]
+
+=> "Acid Arrow"
+
+[4] pry(main)> spell_hash.keys
+
+=> ["_id",
+ "index",
+ "name",
+ "desc",
+ "higher_level",
+ "range",
+ "components",
+ "material",
+ "ritual",
+ "duration",
+ "concentration",
+ "casting_time",
+ "level",
+ "attack_type",
+ "damage",
+ "school",
+ "classes",
+#+end_src
+
+NOTE: This fetching of data in Ruby is done 'synchronously' which means that the program has to wait for the response before running the next line of code.
+
+Once you have the desired hash, you can then access data using bracket notation.
+
+I then added the following to the 'db/seeds.rb' file:
+#+begin_src ruby
+puts "Seeding spells..."
+# these are the spells we want to add to the database
+spells = ["acid-arrow", "animal-messenger", "calm-emotions", "charm-person"]
+
+# iterate over each spell
+spells.each do |spell|
+  # make a request to the endpoint for the individual spell:
+  response = RestClient.get "https://www.dnd5eapi.co/api/spells/#{spell}"
+
+  # the response will come back as a JSON-formatted string.
+  # use JSON.parse to convert this string to a Ruby hash:
+  spell_hash = JSON.parse(response)
+
+  # create a spell in the database using the data from this hash:
+  Spell.create(
+    name: spell_hash["name"],
+    level: spell_hash["level"],
+    description: spell_hash["desc"][0] # spell_hash["desc"] returns an array, so we need to access the first index to get just a string of the description
+  )
+end
+
+puts "Done seeding!"
+#+end_src
+
+I then ran the 'bundle exec rake db:seed' command to seed the database accordingly:
+#+begin_src bash
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-3/phase-3-active-record-seeding-from-apis $ bundle exec rake db:seed
+#+end_src
+
+I then used the following 'rake console' command to explore the data afterwards:
+#+begin_src bash
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-3/phase-3-active-record-seeding-from-apis $ bundle exec rake db:seed
+
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-3/phase-3-active-record-seeding-from-apis $ bundle exec rake console
+
+[1] pry(main)> Spell.last
+
+D, [2022-09-02T20:43:44.040502 #5857] DEBUG -- :    (0.9ms)  SELECT sqlite_version(*)
+D, [2022-09-02T20:43:44.042262 #5857] DEBUG -- :   Spell Load (0.1ms)  SELECT "spells".* FROM "spells" ORDER BY "spells"."id" DESC LIMIT ?  [["LIMIT", 1]]
+=> nil
+#+end_src
